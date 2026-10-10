@@ -4,7 +4,7 @@
 結果は「カルテ用にコピー」で電子カルテに貼り付けられるテキストになります。
 入力内容は端末内だけで計算され、このサイト（GitHub）には送信されません。
 
-公開URL：https://spinesurgueda-droid.github.io/spine_cinical_scores/
+公開URL：https://spinesurgueda-droid.github.io/spine_clinical_scores/
 
 ## 収録スコア
 
@@ -28,7 +28,7 @@
 
 ## iPhoneに入れる
 
-Safari で https://spinesurgueda-droid.github.io/spine_cinical_scores/ を開く →「共有」→「ホーム画面に追加」→「追加」
+Safari で https://spinesurgueda-droid.github.io/spine_clinical_scores/ を開く →「共有」→「ホーム画面に追加」→「追加」
 
 ## アプリを更新するとき
 
