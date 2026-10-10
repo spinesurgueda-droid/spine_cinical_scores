@@ -1,0 +1,16 @@
+{
+  "name": "脊椎スコアブック",
+  "short_name": "脊椎スコア",
+  "description": "脊椎の評価・分類・計測スコア22項目を入力と同時に計算するツール",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F2F5F4",
+  "theme_color": "#0D6767",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

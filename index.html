@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0D6767">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="脊椎スコア">
+<meta name="format-detection" content="telephone=no">
+<meta name="description" content="頚椎・腰椎・外傷・腫瘍・アライメント・計測の脊椎スコア22項目を入力と同時に計算するツール">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<title>脊椎スコアブック</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: 3-pane clinical tool. Score index left, form centre, live result card right (bottom bar on narrow screens). */
+:root{
+  --bg:#F2F5F4; --surface:#FFFFFF; --ink:#15232A; --muted:#5A6A6F; --line:#D7DFDE; --hover:#EEF3F2;
+  --accent:#0D6767; --accent-ink:#FFFFFF; --accent-soft:#DDEDEC;
+  --ok:#2B7A4B; --ok-soft:#E1F1E6; --mild:#806500; --mild-soft:#F8EFCB;
+  --warn:#AD5600; --warn-soft:#FAE7D4; --crit:#AF2A21; --crit-soft:#F8DFDC;
+  --f-body:"BIZ UDPGothic","Hiragino Sans","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1517; --surface:#152023; --ink:#E2EBEA; --muted:#93A3A6; --line:#27373B; --hover:#1B2A2D;
+  --accent:#5CC0BB; --accent-ink:#0B1A1A; --accent-soft:#163A3A;
+  --ok:#6FCB92; --ok-soft:#163326; --mild:#E0C35C; --mild-soft:#363014;
+  --warn:#EFA160; --warn-soft:#3B2714; --crit:#F08B82; --crit-soft:#3D1C1A; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1517; --surface:#152023; --ink:#E2EBEA; --muted:#93A3A6; --line:#27373B; --hover:#1B2A2D;
+  --accent:#5CC0BB; --accent-ink:#0B1A1A; --accent-soft:#163A3A;
+  --ok:#6FCB92; --ok-soft:#163326; --mild:#E0C35C; --mild-soft:#363014;
+  --warn:#EFA160; --warn-soft:#3B2714; --crit:#F08B82; --crit-soft:#3D1C1A; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.65}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{display:grid;grid-template-columns:232px minmax(0,1fr) 300px;gap:24px;max-width:1320px;margin:0 auto;padding-inline:20px;padding-block:20px 40px;align-items:start}
+/* nav */
+.nav{position:sticky;top:calc(env(safe-area-inset-top,0px) + 20px);max-height:calc(100vh - 40px);overflow:auto;padding-right:4px}
+.brand{display:flex;flex-direction:column;gap:2px;margin-bottom:14px}
+.brand h1{font-size:19px;margin:0;letter-spacing:.02em;text-wrap:balance}
+.brand span{font-size:12px;color:var(--muted)}
+.search{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);margin-bottom:12px}
+.grp{margin-bottom:12px}
+.grp h2{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.12em;margin:0 0 4px 8px}
+.nav button.it{display:flex;justify-content:space-between;gap:8px;width:100%;text-align:left;background:none;border:0;border-radius:7px;padding:6px 8px;cursor:pointer;font-size:14px;line-height:1.4}
+.nav button.it:hover{background:var(--hover)}
+.nav button.it[aria-current="true"]{background:var(--accent);color:var(--accent-ink)}
+.nav button.it small{font-family:var(--f-num);font-size:11px;opacity:.7;white-space:nowrap;padding-top:2px}
+/* main */
+.main{min-width:0}
+.head{padding-block:4px 16px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.head .eyebrow{font-size:12px;color:var(--accent);font-weight:700;letter-spacing:.1em}
+.head h2{font-size:24px;margin:2px 0 6px;text-wrap:balance;line-height:1.35}
+.head p{margin:0;color:var(--muted);font-size:14px;max-width:68ch}
+.sample{display:inline-flex;align-items:center;gap:8px;margin-top:10px;font-size:12.5px;padding:4px 10px;border-radius:999px;background:var(--mild-soft);color:var(--mild)}
+.items{display:flex;flex-direction:column;gap:14px}
+.item{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 14px 12px;margin:0;min-width:0}
+.item[hidden]{display:none!important}
+.item legend,.item .lbl{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;font-weight:700;font-size:15px;padding:0;float:left;width:100%;margin-bottom:8px}
+.item legend small,.item .lbl small{font-weight:400;color:var(--muted);font-size:12.5px}
+.item legend em{font-style:normal;font-weight:400;font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 5px}
+.item legend .clr{margin-left:auto;font-size:12px;font-weight:400;background:none;border:0;color:var(--accent);cursor:pointer;padding:0}
+.opts{clear:both;display:flex;flex-direction:column;gap:3px}
+.opt{display:grid;grid-template-columns:20px 44px minmax(0,1fr);align-items:start;gap:8px;padding:6px 8px;border-radius:7px;cursor:pointer;font-size:14px;line-height:1.5}
+.opt:hover{background:var(--hover)}
+.opt input{margin:3px 0 0;accent-color:var(--accent)}
+.opt b{font-family:var(--f-num);font-weight:600;font-size:13px;text-align:center;border-radius:5px;padding:1px 0;background:var(--hover);color:var(--muted)}
+.opt:has(input:checked){background:var(--accent-soft)}
+.opt:has(input:checked) b{background:var(--accent);color:var(--accent-ink)}
+.yn{clear:both;display:flex;gap:8px}
+.yn label{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:8px;cursor:pointer}
+.yn label:has(input:checked){background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.yn input{accent-color:var(--accent)}
+.numgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.num .lbl{float:none;margin-bottom:6px}
+.numwrap{display:flex;align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--bg);overflow:hidden}
+.numwrap input{flex:1;min-width:0;border:0;background:transparent;padding:8px 10px;font-family:var(--f-num);font-size:16px;font-variant-numeric:tabular-nums}
+.numwrap input:focus{outline:none}
+.numwrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.numwrap span{padding:0 10px;color:var(--muted);font-size:13px}
+.ref{margin-top:22px;font-size:13.5px;color:var(--ink)}
+.ref h3{font-size:13px;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}
+.tbl{overflow-x:auto}
+.ref table{border-collapse:collapse;width:100%;min-width:320px}
+.ref th,.ref td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.ref th{font-size:12px;color:var(--muted);font-weight:700}
+.ref td:first-child{font-family:var(--f-num);white-space:nowrap;font-variant-numeric:tabular-nums}
+.ref p{margin:8px 0 0;color:var(--muted);max-width:72ch}
+.cite{font-size:12px;color:var(--muted);margin-top:10px}
+/* result */
+.res{position:sticky;top:calc(env(safe-area-inset-top,0px) + 20px);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.res .rl{font-size:12px;color:var(--muted);letter-spacing:.08em;font-weight:700}
+.res .score{display:flex;align-items:baseline;gap:6px;font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.res .big{font-size:46px;font-weight:600;line-height:1}
+.res .unit{font-size:16px;color:var(--muted)}
+.chip{display:inline-block;align-self:flex-start;font-weight:700;font-size:14px;padding:4px 10px;border-radius:7px;line-height:1.45}
+.lvl-ok{background:var(--ok-soft);color:var(--ok)}
+.lvl-mild{background:var(--mild-soft);color:var(--mild)}
+.lvl-warn{background:var(--warn-soft);color:var(--warn)}
+.lvl-crit{background:var(--crit-soft);color:var(--crit)}
+.lvl-info{background:var(--accent-soft);color:var(--accent)}
+.lvl-none{background:var(--hover);color:var(--muted)}
+.miss{font-size:12.5px;color:var(--warn)}
+.detail{list-style:none;margin:0;padding:10px 0 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:3px;font-size:13px}
+.detail li{display:flex;justify-content:space-between;gap:10px}
+.detail li span:last-child{font-family:var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap}
+.acts{display:flex;gap:8px;margin-top:4px}
+.btn{flex:1;white-space:nowrap;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px 10px;cursor:pointer;font-size:13.5px}
+.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+.btn:hover{filter:brightness(1.05)}
+.toast{font-size:12px;color:var(--ok);min-height:1em}
+.copyfallback{width:100%;min-height:90px;font-family:var(--f-num);font-size:12px;border:1px solid var(--line);border-radius:6px;background:var(--bg);padding:6px}
+.foot{grid-column:1/-1;font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
+.empty{color:var(--muted);font-size:13px;padding:8px}
+/* responsive */
+@media (max-width:1080px){
+  .app{grid-template-columns:220px minmax(0,1fr);padding-bottom:150px}
+  .resWrap{position:fixed;left:0;right:0;bottom:0;z-index:5;padding:0 12px calc(env(safe-area-inset-bottom,0px) + 10px);pointer-events:none}
+  .res{position:static;max-width:760px;margin:0 auto;pointer-events:auto;box-shadow:0 6px 24px rgba(0,0,0,.18);padding:12px 14px;gap:6px;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:14px}
+  .res .rl{display:none}
+  .res .score{grid-row:span 2}
+  .res .big{font-size:36px}
+  .res .detail,.res .toast:empty{display:none}
+  .res .acts{grid-column:1/-1}
+  .res .miss{grid-column:2}
+  .res .chip{justify-self:start}
+}
+@media (max-width:760px){
+  .app{grid-template-columns:minmax(0,1fr);padding-inline:16px;gap:14px}
+  .nav{position:static;max-height:none;overflow:visible;padding:0}
+  .navlist{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
+  .grp{display:contents}
+  .grp h2{display:none}
+  .nav button.it{width:auto;white-space:nowrap;border:1px solid var(--line);background:var(--surface);padding:6px 10px}
+  .nav button.it small{display:none}
+  .head h2{font-size:21px}
+  .opt{grid-template-columns:18px 38px minmax(0,1fr);gap:6px;padding:6px 4px}
+}
+@media (prefers-reduced-motion:no-preference){.opt,.nav button.it{transition:background .12s}}
+html{-webkit-text-size-adjust:100%}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <nav class="nav" aria-label="スコア一覧">
+    <div class="brand"><h1>脊椎スコアブック</h1><span>評価・分類・計測 22項目</span></div>
+    <input class="search" id="q" type="search" placeholder="スコアを検索（例: SINS, 徳橋）" aria-label="スコアを検索">
+    <div class="navlist" id="navlist"></div>
+  </nav>
+  <main class="main" id="main"></main>
+  <div class="resWrap"><aside class="res" id="res" aria-live="polite"></aside></div>
+  <footer class="foot">臨床判断の補助を目的とした計算ツールです。各スコアの判定基準は原著・各学会の最新版で確認してください。入力内容はこの端末内でのみ処理され、送信・保存されません。</footer>
+</div>
+
+<script>
+const GROUPS=[["cerv","頚椎・頚髄症"],["lumb","腰椎"],["trauma","外傷・脊髄損傷"],["tumor","脊椎腫瘍"],["align","脊柱アライメント"],["meas","計測・改善率"]];
+const S=[];
+const def=o=>S.push(o);
+const lv=(l,t)=>({level:l,label:t});
+const r1=x=>Math.round(x*10)/10;
+
+/* ---------- 頚椎 ---------- */
+def({id:"joa17",g:"cerv",name:"JOAスコア（頚髄症）",tag:"17点",desc:"日本整形外科学会 頚髄症治療成績判定基準。運動・知覚・膀胱機能の3領域、17点満点。",
+cite:"日本整形外科学会. 頚髄症治療成績判定基準（1994）. 改善率は平林法。",
+items:[
+ {k:"ue_m",label:"I. 運動機能 ― 上肢",opts:[[0,"箸・スプーン・フォーク・ボタンかけのいずれも自力では不能"],[1,"箸・書字は不能。スプーン・フォークで辛うじて可能"],[2,"箸で大きな物はつまめる。書字は辛うじて可能。大きなボタンかけは可能"],[3,"箸・書字はぎこちない。ワイシャツの袖のボタンかけが可能"],[4,"正常"]]},
+ {k:"le_m",label:"I. 運動機能 ― 下肢",opts:[[0,"歩行不能"],[1,"平地でも杖または支持を要する"],[2,"平地では杖・支持を要しないが、階段ではこれらを要する"],[3,"平地・階段ともに杖・支持を要しないが、ぎこちない"],[4,"正常"]]},
+ {k:"ue_s",label:"II. 知覚 ― 上肢",opts:[[0,"明らかな知覚障害"],[1,"軽度の知覚障害"],[2,"正常"]]},
+ {k:"tr_s",label:"II. 知覚 ― 体幹",opts:[[0,"明らかな知覚障害"],[1,"軽度の知覚障害"],[2,"正常"]]},
+ {k:"le_s",label:"II. 知覚 ― 下肢",opts:[[0,"明らかな知覚障害"],[1,"軽度の知覚障害"],[2,"正常"]]},
+ {k:"bl",label:"III. 膀胱機能",opts:[[0,"尿閉"],[1,"高度の排尿障害（残尿感・怒責・尿切れ不良・排尿時間延長・尿もれ）"],[2,"軽度の排尿障害（頻尿・排尿遅延）"],[3,"正常"]]}],
+sample:{ue_m:3,le_m:2,ue_s:1,tr_s:2,le_s:1,bl:2},
+calc:c=>({main:c.sum,unit:"/ 17",...lv("info","合計（満点 17）"),detail:[["運動（上肢＋下肢）",c.p("ue_m")+c.p("le_m")+" / 8"],["知覚（上肢＋体幹＋下肢）",c.p("ue_s")+c.p("tr_s")+c.p("le_s")+" / 6"],["膀胱",c.p("bl")+" / 3"]]}),
+ref:`<p>術前後の比較には「改善率（平林法）」を使用：（術後 − 術前）÷（17 − 術前）× 100。</p>`});
+
+def({id:"mjoa",g:"cerv",name:"mJOA（modified JOA）",tag:"18点",desc:"Benzel らによる国際版 JOA。AO Spine の DCM ガイドラインで重症度分類に用いられる。",
+cite:"Benzel EC, et al. J Spinal Disord 1991; Tetreault L, et al. Eur Spine J 2017（重症度区分）.",
+items:[
+ {k:"ue",label:"上肢運動機能",opts:[[0,"手を動かせない"],[1,"スプーンで食事ができないが、手は動かせる"],[2,"ボタンかけはできないが、スプーンで食事ができる"],[3,"ボタンかけが非常に困難だが可能"],[4,"ボタンかけがやや困難だが可能"],[5,"障害なし"]]},
+ {k:"le",label:"下肢運動機能",opts:[[0,"運動・感覚機能が完全に消失"],[1,"感覚は残るが下肢を動かせない"],[2,"下肢を動かせるが歩行できない"],[3,"平地を歩行補助具（杖・松葉杖）で歩ける"],[4,"手すりを使えば階段を昇降できる"],[5,"中等度〜高度のバランス障害があるが、手すりなしで階段を昇降できる"],[6,"立位・歩行時に軽度のバランス障害があるが、手すりなしで階段を昇降できる"],[7,"障害なし"]]},
+ {k:"se",label:"上肢感覚",opts:[[0,"手の感覚が完全に消失"],[1,"手の高度な感覚障害または疼痛"],[2,"手の軽度の感覚障害"],[3,"感覚障害なし"]]},
+ {k:"sp",label:"膀胱機能",opts:[[0,"自排尿ができない"],[1,"著しい排尿困難"],[2,"軽度〜中等度の排尿困難"],[3,"正常"]]}],
+calc:c=>({main:c.sum,unit:"/ 18",...(c.sum>=18?lv("ok","正常"):c.sum>=15?lv("mild","軽症 DCM（15–17）"):c.sum>=12?lv("warn","中等症 DCM（12–14）"):lv("crit","重症 DCM（0–11）"))}),
+ref:`<div class="tbl"><table><tr><th>点数</th><th>重症度</th></tr><tr><td>15–17</td><td>軽症</td></tr><tr><td>12–14</td><td>中等症</td></tr><tr><td>0–11</td><td>重症</td></tr></table></div>`});
+
+def({id:"nurick",g:"cerv",name:"Nurick 分類",tag:"Grade 0–5",desc:"頚椎症性脊髄症の歩行能力・就労能力に基づく機能分類。",
+cite:"Nurick S. Brain 1972;95:87–100.",
+items:[{k:"g",label:"該当する Grade",opts:[[0,"神経根症状のみで、脊髄症の所見はない","0"],[1,"脊髄症の所見はあるが、歩行障害はない","1"],[2,"軽度の歩行障害があるが、就労は可能","2"],[3,"歩行障害のため就労・家事全般は困難だが、介助なしで歩行できる","3"],[4,"介助者または歩行器があれば歩行できる","4"],[5,"車椅子または寝たきり","5"]]}],
+calc:c=>{const g=c.p("g");return{main:g,pre:"Grade",unit:"",...[lv("ok","神経根症のみ"),lv("mild","歩行障害なし"),lv("mild","軽度歩行障害"),lv("warn","就労困難"),lv("crit","要介助歩行"),lv("crit","車椅子・臥床")][g]}}});
+
+def({id:"ndi",g:"cerv",name:"NDI（Neck Disability Index）",tag:"0–50",desc:"頚部痛による日常生活障害の自己記入式評価。各項目 0–5 点。未回答項目は除外して％換算。",
+cite:"Vernon H, Mior S. J Manipulative Physiol Ther 1991;14:409–415.",
+items:[
+ {k:"n1",label:"1. 痛みの強さ",opts:[[0,"現在、痛みはない"],[1,"現在の痛みはごく軽い"],[2,"現在の痛みは中等度"],[3,"現在の痛みはかなり強い"],[4,"現在の痛みは非常に強い"],[5,"現在の痛みは想像しうる最悪のもの"]]},
+ {k:"n2",label:"2. 身の回りのこと（洗面・着替えなど）",opts:[[0,"痛みなく普通にできる"],[1,"普通にできるが痛みが出る"],[2,"痛むので時間をかけて慎重に行う"],[3,"多少の手助けが必要だが、ほとんど自分でできる"],[4,"大部分で毎日手助けが必要"],[5,"着替えができず、洗面も困難で寝ている"]]},
+ {k:"n3",label:"3. 物を持ち上げる",opts:[[0,"重い物を痛みなく持ち上げられる"],[1,"重い物を持ち上げられるが痛みが出る"],[2,"床からは無理だが、台の上など持ちやすい位置なら重い物も持てる"],[3,"重い物は無理だが、持ちやすい位置なら軽〜中程度の物は持てる"],[4,"ごく軽い物しか持ち上げられない"],[5,"何も持ち上げられない、または運べない"]]},
+ {k:"n4",label:"4. 読書",opts:[[0,"首の痛みなく好きなだけ読める"],[1,"首に軽い痛みが出るが好きなだけ読める"],[2,"首に中等度の痛みが出るが好きなだけ読める"],[3,"首の中等度の痛みのため、好きなだけは読めない"],[4,"首の強い痛みのため、ほとんど読めない"],[5,"全く読めない"]]},
+ {k:"n5",label:"5. 頭痛",opts:[[0,"頭痛はない"],[1,"時々、軽い頭痛がある"],[2,"時々、中等度の頭痛がある"],[3,"頻繁に中等度の頭痛がある"],[4,"頻繁に強い頭痛がある"],[5,"ほとんど常に頭痛がある"]]},
+ {k:"n6",label:"6. 集中力",opts:[[0,"問題なく十分に集中できる"],[1,"集中するのがわずかに難しい"],[2,"集中するのがかなり難しい"],[3,"集中するのが非常に難しい"],[4,"集中するのが著しく難しい"],[5,"全く集中できない"]]},
+ {k:"n7",label:"7. 仕事",opts:[[0,"好きなだけ仕事ができる"],[1,"いつもの仕事はできるが、それ以上はできない"],[2,"いつもの仕事の大部分はできる"],[3,"いつもの仕事はできない"],[4,"ほとんど仕事ができない"],[5,"全く仕事ができない"]]},
+ {k:"n8",label:"8. 自動車の運転",opt:true,opts:[[0,"首の痛みなく好きなだけ運転できる"],[1,"首に軽い痛みが出るが好きなだけ運転できる"],[2,"首に中等度の痛みが出るが好きなだけ運転できる"],[3,"首の中等度の痛みのため、好きなだけは運転できない"],[4,"首の強い痛みのため、ほとんど運転できない"],[5,"全く運転できない"]]},
+ {k:"n9",label:"9. 睡眠",opts:[[0,"睡眠に問題はない"],[1,"わずかに妨げられる（不眠 1時間未満）"],[2,"軽度に妨げられる（不眠 1–2時間）"],[3,"中等度に妨げられる（不眠 2–3時間）"],[4,"高度に妨げられる（不眠 3–5時間）"],[5,"完全に妨げられる（不眠 5–7時間）"]]},
+ {k:"n10",label:"10. レクリエーション",opts:[[0,"首の痛みなく、すべての活動ができる"],[1,"首に痛みはあるが、すべての活動ができる"],[2,"首の痛みのため、大部分の活動はできる"],[3,"首の痛みのため、一部の活動しかできない"],[4,"首の痛みのため、ほとんど活動できない"],[5,"全く活動できない"]]}],
+calc:c=>{if(!c.ans)return{main:"—",unit:"",...lv("none","未入力")};const pct=c.sum/(5*c.ans)*100,eq=pct/2;
+ return{main:r1(pct),unit:"%",...(eq<5?lv("ok","障害なし"):eq<15?lv("mild","軽度障害"):eq<25?lv("warn","中等度障害"):eq<35?lv("crit","高度障害"):lv("crit","完全障害")),
+ detail:[["素点",`${c.sum} / ${5*c.ans}`],["回答項目",`${c.ans} / 10`]]}},
+ref:`<div class="tbl"><table><tr><th>素点 /50</th><th>判定（Vernon）</th></tr><tr><td>0–4</td><td>障害なし</td></tr><tr><td>5–14</td><td>軽度</td></tr><tr><td>15–24</td><td>中等度</td></tr><tr><td>25–34</td><td>高度</td></tr><tr><td>35–50</td><td>完全</td></tr></table></div><p>未回答がある場合は ％ を 1/2 にした値で区分を判定しています。</p>`});
+
+/* ---------- 腰椎 ---------- */
+const ADL=[[0,"非常に困難"],[1,"やや困難"],[2,"容易"]];
+def({id:"joa29",g:"lumb",name:"JOAスコア（腰痛疾患）",tag:"29点",desc:"日本整形外科学会 腰痛疾患治療成績判定基準。自覚症状・他覚所見・ADL・膀胱機能、29点満点。",
+cite:"日本整形外科学会. 腰痛疾患治療成績判定基準（1986）.",
+items:[
+ {k:"lbp",label:"I-A. 腰痛",opts:[[0,"常に激しい腰痛がある"],[1,"常に腰痛がある、または時にかなりの腰痛がある"],[2,"時に軽い腰痛がある"],[3,"全く腰痛はない"]]},
+ {k:"leg",label:"I-B. 下肢痛およびしびれ",opts:[[0,"常に激しい下肢痛・しびれがある"],[1,"常に下肢痛・しびれがある、または時にかなりの下肢痛・しびれがある"],[2,"時に軽い下肢痛・しびれがある"],[3,"全く下肢痛・しびれはない"]]},
+ {k:"gait",label:"I-C. 歩行能力",opts:[[0,"100m以下の歩行で疼痛・しびれ・脱力を生じ、歩けない"],[1,"500m以下の歩行で疼痛・しびれ・脱力を生じ、歩けない"],[2,"500m以上歩行できるが、疼痛・しびれ・脱力を生じる"],[3,"全く正常に歩行できる"]]},
+ {k:"slr",label:"II-A. SLR（hamstrings tightness を含む）",opts:[[0,"30°未満"],[1,"30°–70°"],[2,"正常"]]},
+ {k:"sen",label:"II-B. 知覚",opts:[[0,"明白な知覚障害"],[1,"軽度の知覚障害"],[2,"正常"]]},
+ {k:"mot",label:"II-C. 筋力",hint:"MMT 4 は軽度、3以下は明白",opts:[[0,"明白な筋力低下"],[1,"軽度の筋力低下"],[2,"正常"]]},
+ {k:"a1",label:"III-a. 寝がえり動作",opts:ADL},{k:"a2",label:"III-b. 立ち上がり動作",opts:ADL},{k:"a3",label:"III-c. 洗顔動作",opts:ADL},
+ {k:"a4",label:"III-d. 中腰姿勢または立位の持続",opts:ADL},{k:"a5",label:"III-e. 長時間坐位（1時間位）",opts:ADL},
+ {k:"a6",label:"III-f. 重量物の挙上または保持",opts:ADL},{k:"a7",label:"III-g. 歩行",opts:ADL},
+ {k:"bl",label:"IV. 膀胱機能",hint:"治療中の場合は1段階下げる",opts:[[0,"正常"],[-3,"軽度の排尿困難（頻尿・排尿遅延・残尿感）"],[-6,"高度の排尿困難（失禁・尿閉）"]]}],
+calc:c=>{const s=k=>k.reduce((a,x)=>a+(c.p(x)??0),0);return{main:c.sum,unit:"/ 29",...lv("info","合計（満点 29）"),
+ detail:[["自覚症状",s(["lbp","leg","gait"])+" / 9"],["他覚所見",s(["slr","sen","mot"])+" / 6"],["日常生活動作",s(["a1","a2","a3","a4","a5","a6","a7"])+" / 14"],["膀胱機能",(c.p("bl")??0)+" (−6〜0)"]]}},
+ref:`<p>改善率（平林法）：（術後 − 術前）÷（29 − 術前）× 100。</p>`});
+
+def({id:"odi",g:"lumb",name:"ODI（Oswestry Disability Index）",tag:"0–100%",desc:"腰痛による日常生活障害の自己記入式評価（v2.1a 準拠）。未回答項目は除外して計算。",
+cite:"Fairbank JC, Pynsent PB. Spine 2000;25:2940–2953.",
+items:[
+ {k:"o1",label:"1. 痛みの強さ",opts:[[0,"現在、痛みはない"],[1,"現在の痛みはごく軽い"],[2,"現在の痛みは中等度"],[3,"現在の痛みはかなり強い"],[4,"現在の痛みは非常に強い"],[5,"現在の痛みは想像しうる最悪のもの"]]},
+ {k:"o2",label:"2. 身の回りのこと（洗面・着替えなど）",opts:[[0,"痛みなく普通にできる"],[1,"普通にできるが、とても痛む"],[2,"痛むので時間をかけて慎重に行う"],[3,"多少の手助けが必要だが、ほとんど自分でできる"],[4,"大部分で毎日手助けが必要"],[5,"着替えができず、洗面も困難で寝ている"]]},
+ {k:"o3",label:"3. 物を持ち上げる",opts:[[0,"重い物を痛みなく持ち上げられる"],[1,"重い物を持ち上げられるが痛みが増す"],[2,"床からは無理だが、台の上など持ちやすい位置なら重い物も持てる"],[3,"重い物は無理だが、持ちやすい位置なら軽〜中程度の物は持てる"],[4,"ごく軽い物しか持ち上げられない"],[5,"何も持ち上げられない、または運べない"]]},
+ {k:"o4",label:"4. 歩行",opts:[[0,"痛みがあっても距離に関係なく歩ける"],[1,"痛みのため 1.6km（1マイル）以上は歩けない"],[2,"痛みのため 400m 以上は歩けない"],[3,"痛みのため 100m 以上は歩けない"],[4,"杖や松葉杖を使わないと歩けない"],[5,"ほとんど寝ていて、トイレへも這って行く"]]},
+ {k:"o5",label:"5. 座ること",opts:[[0,"どんな椅子でも好きなだけ座っていられる"],[1,"好みの椅子なら好きなだけ座っていられる"],[2,"痛みのため 1時間以上は座っていられない"],[3,"痛みのため 30分以上は座っていられない"],[4,"痛みのため 10分以上は座っていられない"],[5,"痛みのため全く座れない"]]},
+ {k:"o6",label:"6. 立つこと",opts:[[0,"痛みなく好きなだけ立っていられる"],[1,"好きなだけ立っていられるが痛みが増す"],[2,"痛みのため 1時間以上は立っていられない"],[3,"痛みのため 30分以上は立っていられない"],[4,"痛みのため 10分以上は立っていられない"],[5,"痛みのため全く立っていられない"]]},
+ {k:"o7",label:"7. 睡眠",opts:[[0,"痛みで眠れないことはない"],[1,"時々、痛みで睡眠が妨げられる"],[2,"痛みのため 6時間未満しか眠れない"],[3,"痛みのため 4時間未満しか眠れない"],[4,"痛みのため 2時間未満しか眠れない"],[5,"痛みのため全く眠れない"]]},
+ {k:"o8",label:"8. 性生活",opt:true,opts:[[0,"普通で、痛みも増えない"],[1,"普通だが、痛みが多少増す"],[2,"ほぼ普通だが、かなり痛む"],[3,"痛みのため著しく制限される"],[4,"痛みのためほとんどない"],[5,"痛みのため全くない"]]},
+ {k:"o9",label:"9. 社会生活",opts:[[0,"普通で、痛みも増えない"],[1,"普通だが、痛みが増す"],[2,"スポーツなど活動的なこと以外は、痛みの影響はあまりない"],[3,"痛みのため制限され、外出が減った"],[4,"痛みのため自宅内に限られる"],[5,"痛みのため社会生活はない"]]},
+ {k:"o10",label:"10. 乗り物での移動",opts:[[0,"痛みなくどこへでも行ける"],[1,"どこへでも行けるが痛みが増す"],[2,"痛むが 2時間以上の移動はできる"],[3,"痛みのため 1時間未満の移動に限られる"],[4,"痛みのため 30分未満の必要最低限の移動に限られる"],[5,"通院以外は痛みのため移動できない"]]}],
+calc:c=>{if(!c.ans)return{main:"—",unit:"",...lv("none","未入力")};const p=c.sum/(5*c.ans)*100;
+ return{main:r1(p),unit:"%",...(p<=20?lv("ok","最小限の障害"):p<=40?lv("mild","中等度の障害"):p<=60?lv("warn","高度の障害"):p<=80?lv("crit","著しい障害（crippled）"):lv("crit","寝たきり、または症状の誇張")),
+ detail:[["素点",`${c.sum} / ${5*c.ans}`],["回答項目",`${c.ans} / 10`]]}},
+ref:`<div class="tbl"><table><tr><th>%</th><th>判定（Fairbank）</th></tr><tr><td>0–20</td><td>最小限の障害</td></tr><tr><td>21–40</td><td>中等度</td></tr><tr><td>41–60</td><td>高度</td></tr><tr><td>61–80</td><td>著しい障害</td></tr><tr><td>81–100</td><td>寝たきり、または誇張</td></tr></table></div>`});
+
+/* ---------- 外傷 ---------- */
+const YN=[[1,"はい"],[0,"いいえ"]];
+def({id:"asia",g:"trauma",name:"ASIA Impairment Scale（AIS）",tag:"A–E",desc:"ISNCSCI に基づく脊髄損傷の重症度分類。順に質問に答えると AIS を判定します。",
+cite:"ASIA/ISCoS. International Standards for Neurological Classification of SCI (ISNCSCI), revised 2019.",
+items:[
+ {k:"q1",yn:true,label:"全髄節で感覚・運動機能が正常か",hint:"以前に障害があり正常化した場合",opts:YN},
+ {k:"q2",yn:true,label:"仙髄節（S4–5）の温存があるか",hint:"S4–5 の触覚または痛覚、肛門深部圧覚（DAP）、随意肛門収縮（VAC）のいずれか",opts:YN,when:s=>s.q1===1},
+ {k:"q3",yn:true,label:"運動不全か",hint:"VAC あり、または いずれかの側で運動レベルより3髄節を超えて尾側に運動機能が残存",opts:YN,when:s=>s.q1===1&&s.q2===0},
+ {k:"q4",yn:true,label:"NLI より尾側の key muscle の半数以上が MMT 3 以上か",opts:YN,when:s=>s.q1===1&&s.q2===0&&s.q3===0}],
+calc:c=>{const s=c.st;let g=null;
+ if(s.q1===0)g="E";else if(s.q1===1){if(s.q2===1)g="A";else if(s.q2===0){if(s.q3===1)g="B";else if(s.q3===0){if(s.q4===0)g="D";else if(s.q4===1)g="C";}}}
+ const m={A:lv("crit","完全損傷"),B:lv("crit","感覚不全損傷"),C:lv("warn","運動不全損傷（MMT3以上が半数未満）"),D:lv("mild","運動不全損傷（MMT3以上が半数以上）"),E:lv("ok","正常")};
+ return g?{main:g,pre:"AIS",unit:"",...m[g]}:{main:"—",pre:"AIS",unit:"",...lv("none","入力途中")}},
+ref:`<div class="tbl"><table><tr><th>AIS</th><th>定義</th><th>参考: Frankel</th></tr>
+<tr><td>A</td><td>S4–5 に感覚・運動機能の温存なし</td><td>A 完全麻痺</td></tr>
+<tr><td>B</td><td>感覚は温存（S4–5 含む）、運動は運動レベルより3髄節を超えて尾側に温存なし</td><td>B 感覚のみ</td></tr>
+<tr><td>C</td><td>運動不全。NLI 以下の key muscle の半数未満が MMT 3 以上</td><td>C 運動あり・実用性なし</td></tr>
+<tr><td>D</td><td>運動不全。NLI 以下の key muscle の半数以上が MMT 3 以上</td><td>D 実用的運動あり</td></tr>
+<tr><td>E</td><td>感覚・運動とも正常（既往の障害あり）</td><td>E 正常</td></tr></table></div>`});
+
+def({id:"tlics",g:"trauma",name:"TLICS",tag:"胸腰椎",desc:"Thoracolumbar Injury Classification and Severity Score。形態・PLC・神経所見で手術適応を判断。",
+cite:"Vaccaro AR, et al. Spine 2005;30:2325–2333.",
+items:[
+ {k:"m",label:"損傷形態",opts:[[1,"圧迫骨折"],[2,"破裂骨折（圧迫 1 ＋ 破裂 1）"],[3,"並進・回旋損傷"],[4,"伸延損傷"]]},
+ {k:"plc",label:"後方靱帯複合体（PLC）",opts:[[0,"損傷なし"],[2,"損傷疑い・判定不能"],[3,"損傷あり"]]},
+ {k:"n",label:"神経学的所見",opts:[[0,"正常"],[2,"神経根損傷"],[2,"脊髄・円錐の完全損傷"],[3,"脊髄・円錐の不全損傷"],[3,"馬尾損傷"]]}],
+calc:c=>({main:c.sum,unit:"/ 10",...(c.sum<=3?lv("ok","保存療法"):c.sum===4?lv("mild","保存・手術いずれも選択肢"):lv("crit","手術療法"))}),
+ref:`<div class="tbl"><table><tr><th>点数</th><th>推奨</th></tr><tr><td>≤ 3</td><td>保存療法</td></tr><tr><td>4</td><td>保存または手術</td></tr><tr><td>≥ 5</td><td>手術療法</td></tr></table></div>`});
+
+def({id:"slic",g:"trauma",name:"SLIC",tag:"中下位頚椎",desc:"Subaxial Cervical Spine Injury Classification。C3–C7 損傷の形態・DLC・神経所見で評価。",
+cite:"Vaccaro AR, et al. Spine 2007;32:2365–2374.",
+items:[
+ {k:"m",label:"損傷形態",opts:[[0,"異常なし"],[1,"圧迫骨折"],[2,"破裂骨折"],[3,"伸延（椎間関節の perch、過伸展損傷）"],[4,"回旋・並進（椎間関節脱臼、不安定型 teardrop、高度屈曲圧迫損傷）"]]},
+ {k:"dlc",label:"椎間板靱帯複合体（DLC）",opts:[[0,"損傷なし"],[1,"判定不能（棘突起間開大のみ、MRI 信号変化のみ）"],[2,"損傷あり（椎間板腔の前方開大、椎間関節 perch・脱臼）"]]},
+ {k:"n",label:"神経学的所見",opts:[[0,"正常"],[1,"神経根損傷"],[2,"完全脊髄損傷"],[3,"不全脊髄損傷"]]},
+ {k:"cc",label:"神経障害を伴う持続的な脊髄圧迫",hint:"椎間板ヘルニアなど",opts:[[0,"なし"],[1,"あり（+1）"]]}],
+calc:c=>({main:c.sum,unit:"/ 10",...(c.sum<=3?lv("ok","保存療法"):c.sum===4?lv("mild","保存・手術いずれも選択肢"):lv("crit","手術療法"))}),
+ref:`<div class="tbl"><table><tr><th>点数</th><th>推奨</th></tr><tr><td>≤ 3</td><td>保存療法</td></tr><tr><td>4</td><td>保存または手術</td></tr><tr><td>≥ 5</td><td>手術療法</td></tr></table></div>`});
+
+/* ---------- 腫瘍 ---------- */
+def({id:"sins",g:"tumor",name:"SINS",tag:"0–18",desc:"Spinal Instability Neoplastic Score。転移性脊椎腫瘍の不安定性評価。",
+cite:"Fisher CG, et al. Spine 2010;35:E1221–E1229.",
+items:[
+ {k:"loc",label:"部位",opts:[[3,"移行部（後頭骨–C2, C7–T2, T11–L1, L5–S1）"],[2,"可動部（C3–C6, L2–L4）"],[1,"半固定部（T3–T10）"],[0,"固定部（S2–S5）"]]},
+ {k:"pain",label:"疼痛",opts:[[3,"あり（臥位で軽快し、体動・荷重で増悪する機械的疼痛）"],[1,"時々あるが機械的疼痛ではない"],[0,"なし"]]},
+ {k:"bone",label:"骨病変",opts:[[2,"溶骨性"],[1,"混合性"],[0,"造骨性"]]},
+ {k:"ali",label:"X線上のアライメント",opts:[[4,"亜脱臼・すべりあり"],[2,"新たな変形（後弯・側弯）"],[0,"正常"]]},
+ {k:"col",label:"椎体圧潰",opts:[[3,"50%以上の圧潰"],[2,"50%未満の圧潰"],[1,"圧潰はないが椎体の50%以上に病変"],[0,"いずれもなし"]]},
+ {k:"pl",label:"後側方病変",hint:"椎間関節・椎弓根・肋椎関節の骨折または腫瘍置換",opts:[[3,"両側"],[1,"片側"],[0,"なし"]]}],
+calc:c=>({main:c.sum,unit:"/ 18",...(c.sum<=6?lv("ok","安定"):c.sum<=12?lv("warn","不安定の可能性（切迫）"):lv("crit","不安定"))}),
+ref:`<div class="tbl"><table><tr><th>点数</th><th>判定</th></tr><tr><td>0–6</td><td>安定</td></tr><tr><td>7–12</td><td>不安定の可能性（indeterminate）</td></tr><tr><td>13–18</td><td>不安定</td></tr></table></div><p>7点以上は脊椎外科へのコンサルトが推奨される。</p>`});
+
+def({id:"tokuhashi",g:"tumor",name:"改訂徳橋スコア",tag:"0–15",desc:"転移性脊椎腫瘍の生命予後予測と治療方針の指標。",
+cite:"Tokuhashi Y, et al. Spine 2005;30:2186–2191.",
+items:[
+ {k:"ps",label:"全身状態（Performance Status）",opts:[[0,"不良（PS 3, 4）"],[1,"中等度（PS 2）"],[2,"良好（PS 0, 1）"]]},
+ {k:"bm",label:"脊椎以外の骨転移数",opts:[[0,"3個以上"],[1,"1〜2個"],[2,"なし"]]},
+ {k:"vm",label:"脊椎転移数",opts:[[0,"3個以上"],[1,"2個"],[2,"1個"]]},
+ {k:"om",label:"主要臓器転移",opts:[[0,"切除不能"],[1,"切除可能"],[2,"なし"]]},
+ {k:"pr",label:"原発巣",opts:[[0,"肺、骨肉腫、胃、膀胱、食道、膵"],[1,"肝、胆嚢、原発不明"],[2,"その他"],[3,"腎、子宮"],[4,"直腸"],[5,"甲状腺、乳腺、前立腺、カルチノイド"]]},
+ {k:"pa",label:"麻痺",opts:[[0,"完全麻痺（Frankel A, B）"],[1,"不全麻痺（Frankel C, D）"],[2,"なし（Frankel E）"]]}],
+calc:c=>({main:c.sum,unit:"/ 15",...(c.sum<=8?lv("crit","予後 6か月未満 → 保存的・緩和的治療"):c.sum<=11?lv("warn","予後 6か月以上 → 姑息的手術"):lv("ok","予後 1年以上 → 切除術を考慮"))}),
+ref:`<div class="tbl"><table><tr><th>点数</th><th>予測予後</th><th>治療方針</th></tr><tr><td>0–8</td><td>6か月未満</td><td>保存的治療</td></tr><tr><td>9–11</td><td>6か月以上</td><td>姑息的手術（単発で臓器転移なしなら切除も）</td></tr><tr><td>12–15</td><td>1年以上</td><td>切除術</td></tr></table></div>`});
+
+def({id:"tomita",g:"tumor",name:"富田スコア",tag:"2–10",desc:"転移性脊椎腫瘍の手術戦略（Tomita surgical strategy）。",
+cite:"Tomita K, et al. Spine 2001;26:298–306.",
+items:[
+ {k:"pr",label:"原発巣の増殖速度",opts:[[1,"緩徐（乳癌、甲状腺癌、前立腺癌 など）"],[2,"中等度（腎癌、子宮癌 など）"],[4,"急速（肺癌、肝癌、胃癌、大腸癌、原発不明 など）"]]},
+ {k:"vi",label:"主要臓器転移",opts:[[0,"なし"],[2,"治療可能"],[4,"治療不能"]]},
+ {k:"bo",label:"骨転移（脊椎を含む）",opts:[[1,"単発または孤立性"],[2,"多発"]]}],
+calc:c=>({main:c.sum,unit:"/ 10",...(c.sum<=3?lv("ok","広範・辺縁切除（長期的局所制御）"):c.sum<=5?lv("mild","辺縁・腫瘍内切除（中期的局所制御）"):c.sum<=7?lv("warn","姑息的手術（短期的緩和）"):lv("crit","緩和ケア（非手術）"))}),
+ref:`<div class="tbl"><table><tr><th>点数</th><th>治療目標</th><th>術式</th></tr><tr><td>2–3</td><td>長期的局所制御</td><td>広範・辺縁切除</td></tr><tr><td>4–5</td><td>中期的局所制御</td><td>辺縁・腫瘍内切除</td></tr><tr><td>6–7</td><td>短期的緩和</td><td>姑息的手術</td></tr><tr><td>8–10</td><td>ターミナルケア</td><td>支持療法</td></tr></table></div>`});
+
+def({id:"bilsky",g:"tumor",name:"Bilsky 分類（ESCC）",tag:"0–3",desc:"MRI 軸位 T2 による硬膜外脊髄圧迫の程度分類。NOMS フレームワークの神経学的評価に用いる。",
+cite:"Bilsky MH, et al. J Neurosurg Spine 2010;13:324–328.",
+items:[{k:"g",label:"最も圧迫の強い断面の所見",opts:[[0,"骨内病変のみ","0"],[1,"硬膜外に進展するが硬膜嚢の変形なし","1a"],[2,"硬膜嚢の変形あり、脊髄への接触なし","1b"],[3,"硬膜嚢の変形あり、脊髄に接するが圧迫なし","1c"],[4,"脊髄圧迫あり、脊髄周囲に CSF が残存","2"],[5,"脊髄圧迫あり、CSF が消失","3"]]}],
+calc:c=>{const i=c.st.g,b=["0","1a","1b","1c","2","3"][i];return{main:b,pre:"Grade",unit:"",...(i<=2?lv("ok","低グレード → 放射線治療（SRS 含む）を検討"):i===3?lv("mild","境界（1c）→ 個別に判断"):lv("crit","高グレード → 除圧術＋放射線を検討（放射線感受性腫瘍を除く）"))}}});
+
+def({id:"mccormick",g:"tumor",name:"McCormick 分類",tag:"I–IV",desc:"脊髄髄内腫瘍などの術前後の神経機能分類。",
+cite:"McCormick PC, et al. J Neurosurg 1990;72:523–532.",
+items:[{k:"g",label:"該当する Grade",opts:[[1,"神経学的に正常、または機能に影響しない軽微な局所症状。軽度の痙性・反射異常。歩行正常","I"],[2,"患肢の機能に影響する感覚運動障害。軽〜中等度の歩行障害、または QOL を損なう強い疼痛・異常感覚。自立して生活・歩行できる","II"],[3,"より重度の神経障害。歩行に杖・装具を要する、または両上肢に明らかな障害。自立している場合もしていない場合もある","III"],[4,"重度の障害。車椅子、または両上肢障害を伴い杖・装具を要する。通常は自立していない","IV"]]}],
+calc:c=>{const g=c.p("g");return{main:["","I","II","III","IV"][g],pre:"Grade",unit:"",...[null,lv("ok","ほぼ正常"),lv("mild","自立歩行可"),lv("warn","補助具を要する"),lv("crit","重度障害")][g]}}});
+
+/* ---------- アライメント ---------- */
+def({id:"schwab",g:"align",name:"SRS-Schwab 分類",tag:"ASD",desc:"成人脊柱変形の分類。カーブタイプと3つの矢状面モディファイア。",
+cite:"Schwab F, et al. Spine 2012;37:1077–1082.",
+items:[
+ {k:"ct",label:"カーブタイプ（冠状面）",opts:[[0,"T：胸椎主カーブ（腰椎カーブ < 30°）","T"],[1,"L：胸腰椎・腰椎主カーブ（胸椎カーブ < 30°）","L"],[2,"D：ダブルカーブ（各 30° 以上）","D"],[3,"N：主要な冠状面変形なし（すべて < 30°）","N"]]},
+ {k:"pi",num:true,label:"PI",unit:"°"},{k:"ll",num:true,label:"LL（L1–S1）",unit:"°",hint:"前弯を正の値で"},
+ {k:"pt",num:true,label:"PT",unit:"°"},{k:"sva",num:true,label:"SVA",unit:"mm",hint:"C7 plumb line と S1 後上縁の距離"}],
+calc:c=>{const pi=c.n("pi"),ll=c.n("ll"),pt=c.n("pt"),sva=c.n("sva"),ct=c.st.ct;
+ const mod=(v,a,b)=>v==null?"?":v<a?"0":v<=b?"+":"++";
+ const m1=pi!=null&&ll!=null?mod(pi-ll,10,20):"?",m2=mod(pt,20,30),m3=sva==null?"?":mod(sva/10,4,9.5);
+ const all=[m1,m2,m3],lvl=all.includes("++")?"crit":all.includes("+")?"warn":all.includes("?")?"none":"ok";
+ return{main:ct==null?"—":["T","L","D","N"][ct],pre:"Type",unit:"",level:lvl,label:`PI−LL ${m1}　PT ${m2}　SVA ${m3}`,
+ detail:[["PI − LL",pi!=null&&ll!=null?r1(pi-ll)+"°":"—"],["PT",pt!=null?pt+"°":"—"],["SVA",sva!=null?r1(sva/10)+" cm":"—"]]}},
+ref:`<div class="tbl"><table><tr><th>Modifier</th><th>0</th><th>+</th><th>++</th></tr><tr><td>PI − LL</td><td>&lt; 10°</td><td>10–20°</td><td>&gt; 20°</td></tr><tr><td>PT</td><td>&lt; 20°</td><td>20–30°</td><td>&gt; 30°</td></tr><tr><td>SVA</td><td>&lt; 4 cm</td><td>4–9.5 cm</td><td>&gt; 9.5 cm</td></tr></table></div>`});
+
+def({id:"gap",g:"align",name:"GAP スコア",tag:"0–13",desc:"Global Alignment and Proportion。PI に基づく理想値との差から矢状面の「比例」を評価し、機械的合併症リスクを予測。",
+cite:"Yilgor C, et al. J Bone Joint Surg Am 2017;99:1661–1672.",
+items:[
+ {k:"pi",num:true,label:"PI",unit:"°"},{k:"ss",num:true,label:"SS",unit:"°"},
+ {k:"ll",num:true,label:"LL（L1–S1）",unit:"°",hint:"前弯を正の値で"},{k:"l4",num:true,label:"L4–S1 前弯",unit:"°"},
+ {k:"gt",num:true,label:"GT（Global Tilt）",unit:"°"},{k:"age",num:true,label:"年齢",unit:"歳"}],
+calc:c=>{const[pi,ss,ll,l4,gt,age]=["pi","ss","ll","l4","gt","age"].map(c.n);
+ if([pi,ss,ll,l4,gt,age].some(v=>v==null))return{main:"—",unit:"/ 13",...lv("none","入力途中"),detail:[]};
+ const rpv=ss-(pi*0.59+9),rll=ll-(pi*0.62+29),ldi=l4/ll*100,rsa=gt-(pi*0.48-15);
+ const s1=rpv<-15?3:rpv<-7?2:rpv<=5?0:1, s2=rll<-25?3:rll<-15?2:rll<=10?0:3, s3=ldi<40?2:ldi<50?1:ldi<=80?0:3, s4=rsa>18?3:rsa>10?1:rsa>=-7?0:1, s5=age>=60?1:0;
+ const t=s1+s2+s3+s4+s5;
+ return{main:t,unit:"/ 13",...(t<=2?lv("ok","Proportioned（0–2）"):t<=6?lv("warn","Moderately disproportioned（3–6）"):lv("crit","Severely disproportioned（≥ 7）")),
+ detail:[["RPV  "+r1(rpv)+"°",s1],["RLL  "+r1(rll)+"°",s2],["LDI  "+r1(ldi)+"%",s3],["RSA  "+r1(rsa)+"°",s4],["年齢因子",s5]]}},
+ref:`<div class="tbl"><table><tr><th>項目</th><th>計算式</th><th>点数</th></tr>
+<tr><td>RPV</td><td>SS − (0.59×PI + 9)</td><td>&lt;−15: 3／−15〜−7: 2／−7〜+5: 0／&gt;+5: 1</td></tr>
+<tr><td>RLL</td><td>LL − (0.62×PI + 29)</td><td>&lt;−25: 3／−25〜−15: 2／−15〜+10: 0／&gt;+10: 3</td></tr>
+<tr><td>LDI</td><td>L4–S1 ÷ L1–S1 × 100</td><td>&lt;40: 2／40–49: 1／50–80: 0／&gt;80: 3</td></tr>
+<tr><td>RSA</td><td>GT − (0.48×PI − 15)</td><td>&gt;+18: 3／+10〜+18: 1／−7〜+10: 0／&lt;−7: 1</td></tr>
+<tr><td>年齢</td><td>—</td><td>≥ 60歳: 1</td></tr></table></div>`});
+
+/* ---------- 計測 ---------- */
+def({id:"recov",g:"meas",name:"改善率（平林法）",tag:"%",desc:"JOA スコアなどの術前後比較。（術後 − 術前）÷（満点 − 術前）× 100。",
+cite:"Hirabayashi K, et al. Spine 1981;6:354–364.",
+items:[
+ {k:"mx",label:"使用スコア",opts:[[17,"JOA 頚髄症（17点満点）","17"],[29,"JOA 腰痛疾患（29点満点）","29"],[18,"mJOA（18点満点）","18"]]},
+ {k:"pre",num:true,label:"術前",unit:"点"},{k:"post",num:true,label:"術後",unit:"点"}],
+calc:c=>{const mx=c.p("mx"),a=c.n("pre"),b=c.n("post");
+ if(mx==null||a==null||b==null)return{main:"—",unit:"%",...lv("none","入力途中")};
+ if(a>=mx)return{main:"—",unit:"%",...lv("none","術前が満点のため算出できません")};
+ const r=(b-a)/(mx-a)*100;
+ return{main:r1(r),unit:"%",...(r>=75?lv("ok","Excellent（≥ 75%）"):r>=50?lv("ok","Good（50–74%）"):r>=25?lv("mild","Fair（25–49%）"):lv("crit","Poor（< 25%）")),detail:[["改善点数",r1(b-a)+" 点"],["改善余地",r1(mx-a)+" 点"]]}},
+ref:`<div class="tbl"><table><tr><th>改善率</th><th>判定（慣用）</th></tr><tr><td>≥ 75%</td><td>Excellent</td></tr><tr><td>50–74%</td><td>Good</td></tr><tr><td>25–49%</td><td>Fair</td></tr><tr><td>&lt; 25%</td><td>Poor（悪化を含む）</td></tr></table></div><p>判定区分は報告により異なります。</p>`});
+
+def({id:"meyerding",g:"meas",name:"Meyerding 分類",tag:"すべり",desc:"脊椎すべり症のすべり率と Grade。すべり量 ÷ 尾側椎上縁の前後径 × 100。",
+cite:"Meyerding HW. Surg Gynecol Obstet 1932;54:371–377.",
+items:[{k:"sl",num:true,label:"すべり量",unit:"mm",hint:"頭側椎後下縁と尾側椎後上縁の距離"},{k:"w",num:true,label:"尾側椎体上縁の前後径",unit:"mm"}],
+calc:c=>{const a=c.n("sl"),w=c.n("w");if(a==null||!w)return{main:"—",unit:"%",...lv("none","入力途中")};
+ const p=a/w*100,g=p<=0?"0":p<25?"I":p<50?"II":p<75?"III":p<=100?"IV":"V";
+ return{main:r1(p),unit:"%",...(g==="V"?lv("crit","Grade V（脊椎下垂症）"):lv(p<25?"mild":p<50?"warn":"crit","Grade "+g))}},
+ref:`<div class="tbl"><table><tr><th>すべり率</th><th>Grade</th></tr><tr><td>0–25%</td><td>I</td></tr><tr><td>25–50%</td><td>II</td></tr><tr><td>50–75%</td><td>III</td></tr><tr><td>75–100%</td><td>IV</td></tr><tr><td>&gt; 100%</td><td>V（脊椎下垂症）</td></tr></table></div>`});
+
+def({id:"genant",g:"meas",name:"Genant 半定量法",tag:"椎体骨折",desc:"椎体の高さの減少率から骨粗鬆症性椎体骨折の程度を判定。",
+cite:"Genant HK, et al. J Bone Miner Res 1993;8:1137–1148.",
+items:[{k:"h",num:true,label:"骨折椎の最小椎体高",unit:"mm",hint:"前縁・中央・後縁のうち最も低い値"},{k:"ref",num:true,label:"基準高",unit:"mm",hint:"同一椎体の後縁高 または 隣接正常椎体高"}],
+calc:c=>{const h=c.n("h"),rf=c.n("ref");if(h==null||!rf)return{main:"—",unit:"%",...lv("none","入力途中")};
+ const p=(1-h/rf)*100;
+ return{main:r1(p),unit:"% 減少",...(p<20?lv("ok","Grade 0（正常）"):p<25?lv("mild","Grade 1（軽度：20–25%）"):p<=40?lv("warn","Grade 2（中等度：25–40%）"):lv("crit","Grade 3（高度：> 40%）"))}},
+ref:`<div class="tbl"><table><tr><th>高さ減少</th><th>Grade</th></tr><tr><td>&lt; 20%</td><td>0 正常</td></tr><tr><td>20–25%</td><td>1 軽度</td></tr><tr><td>25–40%</td><td>2 中等度</td></tr><tr><td>&gt; 40%</td><td>3 高度</td></tr></table></div>`});
+
+def({id:"oplloc",g:"meas",name:"OPLL 占拠率",tag:"%",desc:"頚椎 OPLL の脊柱管占拠率。骨化巣の最大厚 ÷ 同高位の脊柱管前後径 × 100。",
+cite:"占拠率 60% 以上では脊髄症の発症率が高いと報告されている（Matsunaga S, et al.）。",
+items:[{k:"t",num:true,label:"骨化巣の最大厚",unit:"mm"},{k:"c",num:true,label:"脊柱管前後径（同高位）",unit:"mm"}],
+calc:c=>{const t=c.n("t"),d=c.n("c");if(t==null||!d)return{main:"—",unit:"%",...lv("none","入力途中")};
+ const p=t/d*100;return{main:r1(p),unit:"%",...(p>=60?lv("crit","60%以上：脊髄症発症リスク高"):p>=40?lv("warn","40–59%：注意して経過観察"):lv("ok","40%未満")),detail:[["有効脊柱管前後径",r1(d-t)+" mm"]]}},
+ref:`<p>前方法・後方法の選択には K-line、占拠率、後弯の程度を併せて考慮します。</p>`});
+
+/* ---------- engine ---------- */
+const store={},samples={};
+S.forEach(s=>{store[s.id]={};if(s.sample&&s.id==="joa17"){Object.assign(store[s.id],s.sample);samples[s.id]=true}});
+let cur=null;
+const $=id=>document.getElementById(id);
+const esc=t=>String(t).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+const badge=o=>o[2]??String(o[0]);
+const active=(s,st)=>s.items.filter(it=>!it.when||it.when(st));
+
+function ctx(s){
+  const st=store[s.id],act=active(s,st);let sum=0,ans=0,miss=0;
+  act.forEach(it=>{
+    if(it.num){const v=parseFloat(st[it.k]);if(isNaN(v)){if(!it.opt)miss++}return}
+    if(st[it.k]==null){if(!it.opt)miss++}else{sum+=it.opts[st[it.k]][0];ans++}
+  });
+  const find=k=>s.items.find(i=>i.k===k);
+  return{st,sum,ans,miss,act,
+    p:k=>{const i=st[k];return i==null?null:find(k).opts[i][0]},
+    n:k=>{const v=parseFloat(st[k]);return isNaN(v)?null:v}};
+}
+
+function renderNav(){
+  const q=$("q").value.trim().toLowerCase();
+  $("navlist").innerHTML=GROUPS.map(([g,gn])=>{
+    const list=S.filter(s=>s.g===g&&(!q||(s.name+s.tag+s.desc+gn).toLowerCase().includes(q)));
+    if(!list.length)return"";
+    return`<div class="grp"><h2>${gn}</h2>${list.map(s=>`<button class="it" data-id="${s.id}" aria-current="${s.id===cur}"><span>${s.name}</span><small>${s.tag}</small></button>`).join("")}</div>`;
+  }).join("")||`<div class="empty">該当するスコアがありません</div>`;
+  const a=document.querySelector('.nav button.it[aria-current="true"]');if(a&&window.innerWidth<=760){const l=$("navlist");l.scrollLeft=a.offsetLeft-l.offsetLeft-16}
+}
+
+function itemHTML(s,it,st){
+  const id=`${s.id}-${it.k}`,hid=it.when&&!it.when(st)?" hidden":"";
+  if(it.num)return`<div class="item num" data-k="${it.k}"${hid}><label class="lbl" for="${id}">${it.label}${it.hint?`<small>${it.hint}</small>`:""}</label><div class="numwrap"><input id="${id}" data-k="${it.k}" type="number" inputmode="decimal" step="any" value="${esc(st[it.k]??"")}"><span>${it.unit}</span></div></div>`;
+  const legend=`<legend><span>${it.label}</span>${it.opt?`<em>該当なしは未回答</em><button type="button" class="clr" data-clr="${it.k}">未回答にする</button>`:""}${it.hint?`<small>${it.hint}</small>`:""}</legend>`;
+  if(it.yn)return`<fieldset class="item" data-k="${it.k}"${hid}>${legend}<div class="yn">${it.opts.map((o,i)=>`<label><input type="radio" id="${id}-${i}" name="${id}" data-k="${it.k}" value="${i}"${st[it.k]===i?" checked":""}>${o[1]}</label>`).join("")}</div></fieldset>`;
+  return`<fieldset class="item" data-k="${it.k}"${hid}>${legend}<div class="opts">${it.opts.map((o,i)=>`<label class="opt"><input type="radio" id="${id}-${i}" name="${id}" data-k="${it.k}" value="${i}"${st[it.k]===i?" checked":""}><b>${badge(o)}</b><span>${o[1]}</span></label>`).join("")}</div></fieldset>`;
+}
+
+function open(id){
+  const s=S.find(x=>x.id===id)||S[0];cur=s.id;
+  try{localStorage.setItem("spine-cur",cur)}catch(e){}
+  try{history.replaceState(null,"","#"+cur)}catch(e){}
+  const st=store[s.id],gname=GROUPS.find(g=>g[0]===s.g)[1];
+  const nums=s.items.filter(i=>i.num),rads=s.items.filter(i=>!i.num);
+  $("main").innerHTML=`<header class="head"><div class="eyebrow">${gname}</div><h2>${s.name}</h2><p>${s.desc}</p>${samples[s.id]?`<div class="sample" id="sampleTag">サンプル値を表示中です。リセットで消去できます</div>`:""}</header>
+  <form class="items" id="form" autocomplete="off">${rads.map(it=>itemHTML(s,it,st)).join("")}${nums.length?`<div class="numgrid">${nums.map(it=>itemHTML(s,it,st)).join("")}</div>`:""}</form>
+  ${s.ref||s.cite?`<section class="ref">${s.ref?`<h3>判定基準</h3>${s.ref}`:""}<div class="cite">出典：${s.cite}</div></section>`:""}`;
+  renderNav();update();
+  $("form").addEventListener("submit",e=>e.preventDefault());
+}
+
+function update(){
+  const s=S.find(x=>x.id===cur),c=ctx(s),r=s.calc(c)||{};
+  document.querySelectorAll("#form .item").forEach(el=>{const it=s.items.find(i=>i.k===el.dataset.k);if(it&&it.when)el.hidden=!it.when(c.st)});
+  const partial=c.miss>0&&r.level!=="none";
+  const lvl=partial?"none":r.level, label=partial?"入力途中（暫定値）":r.label;
+  $("res").innerHTML=`<div class="rl">${s.name}</div>
+   <div class="score">${r.pre?`<span class="unit">${r.pre}</span>`:""}<span class="big">${r.main??"—"}</span><span class="unit">${r.unit??""}</span></div>
+   <span class="chip lvl-${lvl}">${esc(label??"")}</span>
+   ${c.miss?`<div class="miss">未入力 ${c.miss} 項目</div>`:""}
+   ${r.detail&&r.detail.length?`<ul class="detail">${r.detail.map(d=>`<li><span>${d[0]}</span><span>${d[1]}</span></li>`).join("")}</ul>`:""}
+   <div class="acts"><button class="btn pri" type="button" id="copy">カルテ用にコピー</button><button class="btn" type="button" id="reset">リセット</button></div>
+   <div class="toast" id="toast"></div>`;
+  $("copy").onclick=()=>copyText(s,c,{...r,label});
+  $("reset").onclick=()=>{store[s.id]={};delete samples[s.id];open(s.id)};
+}
+
+function copyText(s,c,r){
+  const lines=[`【${s.name}】 ${r.pre?r.pre+" ":""}${r.main??"—"}${r.unit?" "+r.unit:""}　${r.label??""}`];
+  c.act.forEach(it=>{
+    const v=c.st[it.k];
+    if(it.num){lines.push(`・${it.label}: ${v!=null&&v!==""?v+" "+it.unit:"未入力"}`);return}
+    if(v==null){lines.push(`・${it.label}: ${it.opt?"未回答":"未入力"}`);return}
+    const o=it.opts[v];lines.push(`・${it.label}: ${it.yn?o[1]:(o[2]??o[0]+"点")}${it.yn?"":"（"+o[1]+"）"}`);
+  });
+  (r.detail||[]).forEach(d=>lines.push(`  ${d[0]}: ${d[1]}`));
+  const txt=lines.join("\n");
+  const done=()=>{$("toast").textContent="コピーしました"};
+  const fallback=()=>{$("toast").innerHTML=`<textarea class="copyfallback" readonly>${esc(txt)}</textarea>`;const ta=$("toast").querySelector("textarea");ta.focus();ta.select()};
+  try{navigator.clipboard.writeText(txt).then(done,fallback)}catch(e){fallback()}
+}
+
+document.addEventListener("change",e=>{
+  const k=e.target.dataset&&e.target.dataset.k;if(!k||!cur||e.target.type!=="radio")return;
+  store[cur][k]=+e.target.value;clearSample();update();
+});
+document.addEventListener("input",e=>{
+  const k=e.target.dataset&&e.target.dataset.k;if(!k||!cur||e.target.type!=="number")return;
+  store[cur][k]=e.target.value;clearSample();update();
+});
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button.it");if(b){open(b.dataset.id);window.scrollTo({top:0});return}
+  const clr=e.target.closest("[data-clr]");if(clr){delete store[cur][clr.dataset.clr];document.querySelectorAll(`input[name="${cur}-${clr.dataset.clr}"]`).forEach(i=>i.checked=false);update()}
+});
+function clearSample(){if(samples[cur]){delete samples[cur];const t=$("sampleTag");if(t)t.remove()}}
+$("q").addEventListener("input",renderNav);
+
+let start=(location.hash||"").slice(1);
+if(!S.some(s=>s.id===start)){try{start=localStorage.getItem("spine-cur")}catch(e){start=null}}
+open(S.some(s=>s.id===start)?start:"joa17");
+if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script>
+</body>
+</html>
